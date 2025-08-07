@@ -6,6 +6,8 @@ import requests
 import os
 from dotenv import load_dotenv
 import json
+from openai import OpenAI
+
 
 # Load environment variables
 load_dotenv()
@@ -192,8 +194,71 @@ async def chat_analysis(request: ChatRequest):
                 "volume": market.get("volume")
             })
         
-        # API call to openai here vvv
-        print("gello")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        client = OpenAI(api_key=openai_api_key)
+
+        event_context = {
+            "title": "Q1-2026 Global Inflation Outlook",
+            "description": "Set of markets tracking whether major economies will keep inflation under 3 % by March 31 2026.",
+            "category": "Macro",
+            "endDate": "2026-03-31T23:59:59Z",
+            "markets": [
+                {
+                    "question": "Will U.S. CPI YoY be below 3 % in March 2026?",
+                    "description": "Resolves ‘Yes’ if the YoY change in the U.S. Consumer Price Index reported for March 2026 is strictly below 3 %. Uses BLS headline CPI.",
+                    "probability": 0.47,
+                    "volume": 158_200.50
+                }
+            ]
+        }
+
+        prompt = (
+        """ You are “Quark,” a ruthless macro-focused prediction-market strategist. 
+        Traits: brutally realistic, deeply quantitative, unfazed by uncertainty, allergic to fluff. 
+        Goal: design a complete trading strategy—research, signal generation, risk control, order execution, monitoring, and post-mortem—for the market(s) in the supplied JSON. 
+        Assume full API access to Polymarket’s Gamma & CLOB endpoints and on-chain settlement. 
+        Capital available: 100 000 USDC.   Target risk per trade: ≤ 2 % of NAV.   Max portfolio VaR (95 %): ≤ 10 %.
+
+        USER:
+        Below is the event context (verbatim).  
+        Tasks:
+        1. **Fundamental Thesis** –  
+        • Deconstruct the macro backdrop (Fed policy path, fiscal, labor, commodities).  
+        • State the two strongest bullish and two strongest bearish arguments for the market’s “Yes” outcome.  
+        2. **Quant Signals** –  
+        • List ≥ 3 leading indicators you’d track (e.g., CPI nowcasts, 5-y breakevens, OIS curve, Atlanta Fed Wage Growth).  
+        • Describe how you’d translate each into a probability update (formula or pseudocode).  
+        3. **Order-Book & Liquidity Scan** –  
+        • Pull best bid/ask, depth at ±5 c, and 30-day volume.  
+        • Decide limit-vs-RFQ vs sweeping and justify.  
+        4. **Position Sizing & Risk** –  
+        • Compute position size for base case (0.47 prob, 6 c/5 c spread) using Kelly fraction capped by the risk limits above. Show math.  
+        • Define stop-loss / hedge (e.g., inverse CPI spreads on Kalshi or EURUSD options).  
+        5. **Execution Plan** –  
+        • Pseudocode for placing, modifying, cancelling orders via the CLOB API—including handling partial fills and API rate-limits.  
+        • Specify monitoring cadence (cron or event-driven) and alert conditions (price gaps, liquidity evaporates, new CPI print).  
+        6. **Performance & Attribution** –  
+        • Lay out metrics: PnL vs mark-to-model, hit ratio, intraday slippage, variance contribution per signal.  
+        • Describe a nightly notebook / dashboard update.  
+        7. **Contingencies** –  
+        • What blows up this trade? (Fed surprise hike, supply-shock oil spike, data revision).  
+        • Mitigations (flatten, reverse, or re-hedge).  
+        8. **Deliverable Format** –  
+        Return a JSON object with these top-level keys:  
+            • "thesis", "signals", "sizing", "execution", "monitoring", "contingencies".  
+        Each key’s value should be Markdown-ready text (line breaks with \n). Keep numbers as plain floats.
+        """
+            + json.dumps(event_context, indent=2)
+        )
+
+        resp = client.responses.create(
+            model="gpt-4o-mini",
+            input=prompt,            
+        
+        )
+
+        return resp.output_text
+
 
         
     except Exception as e:
