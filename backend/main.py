@@ -72,7 +72,8 @@ async def get_events(
     try:
         params = {
             "limit": limit,
-            "active": True
+            "active": True,
+            "closed": False
         }
         
         if category:
@@ -91,20 +92,22 @@ async def get_events(
                    search_lower in event.get("description", "").lower()
             ]
         
-        # Format events with markets
+        # Format events with markets -> need to fix this here by calling the markets endpoint
         formatted_events = []
         for event in events:
             markets = event.get("markets", [])
             formatted_markets = []
             
             for market in markets:
+
                 formatted_markets.append({
                     "id": market.get("id"),
                     "question": market.get("question"),
                     "description": market.get("description"),
-                    "probability": market.get("probability", 0),
+                    "outcomePrices": market.get("outcomePrices")[0] if market.get("outcomePrices") else 0,
                     "volume": market.get("volume", 0)
                 })
+                #print(market.get("outcomePrices"))
             
             formatted_events.append({
                 "id": event.get("id"),
@@ -113,7 +116,8 @@ async def get_events(
                 "slug": event.get("slug"),
                 "endDate": event.get("endDate"),
                 "category": event.get("category", "General"),
-                "markets": formatted_markets
+                "markets": formatted_markets,
+                "image": event.get("image") # image url
             })
         
         return formatted_events
@@ -188,24 +192,9 @@ async def chat_analysis(request: ChatRequest):
                 "volume": market.get("volume")
             })
         
-        # For now, return a mock AI response
-        # In a real implementation, you would integrate with OpenAI or another AI service
-        volumes = [float(m.get('volume', 0)) for m in event_context['markets'] if m.get('volume') is not None]
-        total_volume = sum(volumes) if volumes else 0
-        ai_response = f"I've analyzed the event '{event_context['title']}'. This event has {len(event_context['markets'])} markets with a total volume of ${total_volume:,.0f}. "
-        
-        if event_context['markets']:
-            probabilities = [float(m.get('probability', 0)) for m in event_context['markets'] if m.get('probability') is not None]
-            if probabilities:
-                avg_probability = sum(probabilities) / len(probabilities)
-                ai_response += f"The average probability across all markets is {avg_probability:.1%}. "
-        
-        ai_response += "What specific aspect of this event would you like me to analyze further?"
-        
-        return ChatResponse(
-            response=ai_response,
-            event_context=event_context
-        )
+        # API call to openai here vvv
+        print("gello")
+
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -214,20 +203,30 @@ async def chat_analysis(request: ChatRequest):
 async def get_trending_events(limit: int = Query(10, ge=1, le=20)):
     """Get trending events based on volume"""
     try:
-        response = requests.get(f"{GAMMA_BASE}/events", params={"limit": limit, "active": True, "sortBy": "volume"}, timeout=10)
+
+        params = {
+            "order": "volume",      # <-- use a real field
+            "ascending": False,      # send a boolean, not a string
+            "limit": 10,
+            "closed": False, # only get open markets
+            # "liquidity_num_min": 100000
+        }
+        response = requests.get(f"{GAMMA_BASE}/events", params=params, timeout=10)
         response.raise_for_status()
         events = response.json()
+
         
         trending_events = []
         for event in events:
-            total_volume = sum(float(market.get("volume", 0)) for market in event.get("markets", []))
-            trending_events.append({
+
+            trending_events.append(
+                {
                 "id": event.get("id"),
                 "title": event.get("title"),
-                "category": event.get("category", "General"),
-                "total_volume": total_volume,
-                "market_count": len(event.get("markets", [])),
-                "endDate": event.get("endDate")
+                "volume24hr": event.get("volume24hr"),
+                "endDate": event.get("endDate"),
+                "image": event.get("image"), # image url,
+                "category": event.get("category")   
             })
         
         return trending_events

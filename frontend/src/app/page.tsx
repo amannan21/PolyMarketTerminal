@@ -10,22 +10,24 @@ interface Event {
   description: string
   category: string
   endDate: string
-  markets: Market[]
+  markets: Market[],
+  image: string
 }
 
 interface Market {
   id: string
   question: string
-  probability: number
+  outcomePrices: number
   volume: number | string
 }
 
 interface TrendingEvent {
   id: string
   title: string
+  volume24hr: string
+  endDate: number
+  image: string
   category: string
-  total_volume: number
-  market_count: number
 }
 
 export default function Home() {
@@ -224,7 +226,8 @@ export default function Home() {
                               <span className="text-gray-700">{market.question}</span>
                               <div className="flex items-center space-x-4">
                                 <span className="text-green-600 font-medium">
-                                  {(market.probability * 100).toFixed(1)}%
+                                  {/* {(market.outcomePrices * 100).toFixed(1)}% */}
+                                  {market.outcomePrices}
                                 </span>
                                 <span className="text-gray-500">
                                   {formatVolume(market.volume)}
@@ -256,12 +259,29 @@ export default function Home() {
               <div className="divide-y divide-gray-200">
                 {trendingEvents.map((event) => (
                   <div key={event.id} className="p-4 hover:bg-gray-50">
-                    <h4 className="font-medium text-gray-900 mb-1 line-clamp-2">
-                      {event.title}
-                    </h4>
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <span>{event.category}</span>
-                      <span>{formatVolume(event.total_volume)}</span>
+                    <div className="flex items-start space-x-3">
+                      {/* Event Image */}
+                      {event.image && (
+                        <img 
+                          src={event.image} 
+                          alt={event.title}
+                          className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
+                        />
+                      )}
+                      
+                      {/* Event Details */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 mb-1 line-clamp-2">
+                          {event.title}
+                        </h4>
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <span>{event.category || 'General'}</span>
+                          <span>{formatVolume(event.volume24hr)}</span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Ends: {formatDate(String(event.endDate))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
