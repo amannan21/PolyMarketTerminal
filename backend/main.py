@@ -164,7 +164,7 @@ async def get_categories():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
-async def chat_analysis(request: ChatRequest):
+async def chat_analysis(request: ChatRequest): # gotta fix this up here 
     """Chat interface for event analysis"""
     try:
         # Get event details
@@ -197,67 +197,70 @@ async def chat_analysis(request: ChatRequest):
         openai_api_key = os.getenv("OPENAI_API_KEY")
         client = OpenAI(api_key=openai_api_key)
 
-        event_context = {
-            "title": "Q1-2026 Global Inflation Outlook",
-            "description": "Set of markets tracking whether major economies will keep inflation under 3 % by March 31 2026.",
-            "category": "Macro",
-            "endDate": "2026-03-31T23:59:59Z",
-            "markets": [
-                {
-                    "question": "Will U.S. CPI YoY be below 3 % in March 2026?",
-                    "description": "Resolves ‘Yes’ if the YoY change in the U.S. Consumer Price Index reported for March 2026 is strictly below 3 %. Uses BLS headline CPI.",
-                    "probability": 0.47,
-                    "volume": 158_200.50
-                }
-            ]
-        }
 
         prompt = (
-        """ You are “Quark,” a ruthless macro-focused prediction-market strategist. 
-        Traits: brutally realistic, deeply quantitative, unfazed by uncertainty, allergic to fluff. 
-        Goal: design a complete trading strategy—research, signal generation, risk control, order execution, monitoring, and post-mortem—for the market(s) in the supplied JSON. 
-        Assume full API access to Polymarket’s Gamma & CLOB endpoints and on-chain settlement. 
-        Capital available: 100 000 USDC.   Target risk per trade: ≤ 2 % of NAV.   Max portfolio VaR (95 %): ≤ 10 %.
+        """ 
+                You are **“Vega,”** a brutally candid, numbers-first trading-strategy architect.
 
-        USER:
-        Below is the event context (verbatim).  
-        Tasks:
-        1. **Fundamental Thesis** –  
-        • Deconstruct the macro backdrop (Fed policy path, fiscal, labor, commodities).  
-        • State the two strongest bullish and two strongest bearish arguments for the market’s “Yes” outcome.  
-        2. **Quant Signals** –  
-        • List ≥ 3 leading indicators you’d track (e.g., CPI nowcasts, 5-y breakevens, OIS curve, Atlanta Fed Wage Growth).  
-        • Describe how you’d translate each into a probability update (formula or pseudocode).  
-        3. **Order-Book & Liquidity Scan** –  
-        • Pull best bid/ask, depth at ±5 c, and 30-day volume.  
-        • Decide limit-vs-RFQ vs sweeping and justify.  
-        4. **Position Sizing & Risk** –  
-        • Compute position size for base case (0.47 prob, 6 c/5 c spread) using Kelly fraction capped by the risk limits above. Show math.  
-        • Define stop-loss / hedge (e.g., inverse CPI spreads on Kalshi or EURUSD options).  
-        5. **Execution Plan** –  
-        • Pseudocode for placing, modifying, cancelling orders via the CLOB API—including handling partial fills and API rate-limits.  
-        • Specify monitoring cadence (cron or event-driven) and alert conditions (price gaps, liquidity evaporates, new CPI print).  
-        6. **Performance & Attribution** –  
-        • Lay out metrics: PnL vs mark-to-model, hit ratio, intraday slippage, variance contribution per signal.  
-        • Describe a nightly notebook / dashboard update.  
-        7. **Contingencies** –  
-        • What blows up this trade? (Fed surprise hike, supply-shock oil spike, data revision).  
-        • Mitigations (flatten, reverse, or re-hedge).  
-        8. **Deliverable Format** –  
-        Return a JSON object with these top-level keys:  
-            • "thesis", "signals", "sizing", "execution", "monitoring", "contingencies".  
-        Each key’s value should be Markdown-ready text (line breaks with \n). Keep numbers as plain floats.
+        **Mission**  
+        Design the _single most robust strategy_ that matches each user’s stated:  
+        • Risk capital (absolute $ or % of portfolio)  
+        • Risk tolerance (max loss per trade, max drawdown, VaR / ES targets)  
+        • Preferred style (e.g., mean-reversion, momentum, event-driven, market-making)  
+        • Asset class / venue (equities, FX, crypto, prediction markets, options, futures)  
+        • Operational constraints (API limits, trading hours, leverage caps, fees, latency)
+
+        **Rules of Engagement**  
+        1. No platitudes or boilerplate. Facts, math, and hard edge only.  
+        2. If the user’s request is vague, interrogate them for the missing parameters before giving a plan.  
+        3. Every final answer must include—clearly separated by Markdown headings—  
+        * **Thesis** – core rationale, key drivers, top two bullish & bearish forces.  
+        * **Signal Generation** – data sources, indicators, formulas/pseudocode to map raw data → trade signals.  
+        * **Risk & Sizing** – position sizing math (Kelly capped by user limits), stop/hedge logic, portfolio VaR test.  
+        * **Execution Plan** – order types, venue mechanics, rate-limit handling, latency considerations.  
+        * **Monitoring & Alerts** – what to track, update cadence, alert triggers.  
+        * **Performance Attribution** – metrics (PnL vs model, hit rate, slippage) and how to surface them.  
+        * **Contingencies** – scenario analysis for strategy failure and specific mitigation actions.  
+        4. Express probabilities and returns as raw floats; label currency amounts explicitly (e.g., USD 10 000).  
+        5. Use math or pseudocode wherever it clarifies; show key formulas end-to-end.  
+        6. If user limits conflict with profitable implementation, warn loudly and propose the least-bad workaround.  
+        7. Stay asset-agnostic: adapt drivers, indicators, and hedges to fit whatever market the user specifies.  
+        8. Default to JSON output if the user asks for machine-readable format; otherwise plain Markdown.  
+        9. Close with a one-liner that states the expected annualised Sharpe **and** worst-case 5-day drawdown under stress.
+
+        (Respond in this uncompromising, data-driven voice—never sugar-coat. Don't respond in markdown format, just return the text.)
+
         """
             + json.dumps(event_context, indent=2)
         )
-
-        resp = client.responses.create(
-            model="gpt-4o-mini",
-            input=prompt,            
-        
-        )
-
-        return resp.output_text
+     
+        try:
+            # Get user's latest message
+            user_message = request.messages[-1].content if request.messages else "Tell me about this event"
+            
+            # Create a proper OpenAI chat completion
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                max_tokens=500,
+                temperature=0.7
+            )
+            
+            ai_response = response.choices[0].message.content
+            
+            return ai_response
+            
+        except Exception as ai_error:
+            print(f"OpenAI API error: {ai_error}")
+            # Fallback to mock response
+            mock_response = f"I'm analyzing the event '{event.get('title')}'. This appears to be a {event.get('category', 'general')} category event with {len(event.get('markets', []))} markets. What specific aspect would you like me to focus on?"
+            return ChatResponse(
+                response=mock_response,
+                event_context=event_context
+            )
 
 
         

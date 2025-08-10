@@ -1,8 +1,11 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Search, TrendingUp, MessageCircle, Filter, X, Send } from 'lucide-react'
+import { Search, TrendingUp, MessageCircle, Filter, X, Send, Star, Command } from 'lucide-react'
 import axios from 'axios'
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Event {
   id: string
@@ -43,10 +46,47 @@ export default function Home() {
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set())
+  const [watchlist, setWatchlist] = useState<Set<string>>(new Set())
+  const [showPalette, setShowPalette] = useState(false)
+  const [paletteQuery, setPaletteQuery] = useState('')
 
   useEffect(() => {
     fetchData()
   }, [searchQuery, selectedCategory])
+
+  // load watchlist from localStorage once
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('watchlist')
+      if (raw) setWatchlist(new Set(JSON.parse(raw)))
+    } catch {}
+  }, [])
+
+  // persist watchlist
+  useEffect(() => {
+    try { localStorage.setItem('watchlist', JSON.stringify(Array.from(watchlist))) } catch {}
+  }, [watchlist])
+
+  // command palette hotkey
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setShowPalette((s) => !s)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const toggleWatchlist = (eventId: string) => {
+    setWatchlist(prev => {
+      const next = new Set(prev)
+      if (next.has(eventId)) next.delete(eventId)
+      else next.add(eventId)
+      return next
+    })
+  }
 
   const fetchData = async () => {
     try {
@@ -110,10 +150,12 @@ export default function Home() {
         event_id: selectedEvent.id,
         messages: [...chatMessages, userMessage]
       })
+      console.log(response.data)
 
+      const reply = typeof response.data === 'string' ? response.data : (response.data?.response ?? JSON.stringify(response.data))
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: response.data.response
+        content: reply
       }])
     } catch (error) {
       console.error('Error sending chat message:', error)
@@ -150,10 +192,20 @@ export default function Home() {
               <p className="text-gray-700 mt-1 font-medium">Search and analyze prediction markets</p>
             </div>
             <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-2 text-sm text-gray-600 bg-blue-50 px-4 py-2 rounded-full">
+              <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-600 bg-blue-50 px-4 py-2 rounded-full">
                 <TrendingUp className="h-4 w-4 text-blue-600" />
                 <span className="font-medium">{trendingEvents.length} trending events</span>
               </div>
+              <button
+                onClick={() => setShowPalette(true)}
+                className="hidden md:flex items-center space-x-2 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50"
+                title="Command Palette (⌘/Ctrl+K)"
+              >
+                <Command className="h-4 w-4 text-gray-600" />
+                <span className="text-sm text-gray-700">Command</span>
+                <span className="ml-2 hidden lg:inline text-xs text-gray-500 border border-gray-200 rounded px-1">⌘K</span>
+              </button>
+              <ConnectButton chainStatus="icon" showBalance={false} accountStatus="address" />
             </div>
           </div>
         </div>
@@ -242,13 +294,22 @@ export default function Home() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleAnalyzeEvent(event)}
-                          className="ml-6 flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                          <span className="font-medium">Analyze</span>
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => toggleWatchlist(event.id)}
+                            className={`p-2 rounded-lg border ${watchlist.has(event.id) ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                            title={watchlist.has(event.id) ? 'Remove from Watchlist' : 'Add to Watchlist'}
+                          >
+                            <Star className={`h-5 w-5 ${watchlist.has(event.id) ? 'text-yellow-500 fill-yellow-400' : 'text-gray-500'}`} />
+                          </button>
+                          <button
+                            onClick={() => handleAnalyzeEvent(event)}
+                            className="ml-2 flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            <span className="font-medium">Analyze</span>
+                          </button>
+                        </div>
                       </div>
                       
                       {event.markets.length > 0 && (
@@ -289,6 +350,38 @@ export default function Home() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Watchlist */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200">
+              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  <span>Watchlist</span>
+                </h3>
+                <span className="text-sm text-gray-500">{watchlist.size}</span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {Array.from(watchlist).length === 0 && (
+                  <div className="p-4 text-sm text-gray-500">No items yet. Star events to add them here.</div>
+                )}
+                {events.filter(e => watchlist.has(e.id)).map((e) => (
+                  <div key={e.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex items-start justify-between">
+                      <div className="mr-3 min-w-0">
+                        <div className="font-medium text-gray-900 line-clamp-2 text-sm">{e.title}</div>
+                        <div className="text-xs text-gray-500 mt-1">Ends {formatDate(e.endDate)}</div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button onClick={() => handleAnalyzeEvent(e)} className="text-blue-600 text-sm hover:underline">Analyze</button>
+                        <button onClick={() => toggleWatchlist(e.id)} className="text-gray-400 hover:text-gray-600" title="Remove">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Trending Events */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200">
               <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-orange-50 to-red-50">
@@ -336,6 +429,45 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Command Palette */}
+      {showPalette && (
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" onClick={() => setShowPalette(false)}>
+          <div className="max-w-2xl mx-auto mt-24" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+              <div className="p-3 border-b border-gray-100 flex items-center space-x-2">
+                <Search className="h-4 w-4 text-gray-500" />
+                <input
+                  autoFocus
+                  value={paletteQuery}
+                  onChange={(e) => setPaletteQuery(e.target.value)}
+                  placeholder="Search events or type 'analyze'..."
+                  className="w-full outline-none text-sm text-gray-900 placeholder-gray-500"
+                />
+                <button onClick={() => setShowPalette(false)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {events
+                  .filter(e => e.title.toLowerCase().includes(paletteQuery.toLowerCase()))
+                  .slice(0, 12)
+                  .map(e => (
+                    <button
+                      key={e.id}
+                      onClick={() => { setShowPalette(false); handleAnalyzeEvent(e) }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between"
+                    >
+                      <span className="text-sm text-gray-900 line-clamp-1">{e.title}</span>
+                      <span className="text-xs text-gray-500">Ends {formatDate(e.endDate)}</span>
+                    </button>
+                  ))}
+                {events.length === 0 && (
+                  <div className="px-4 py-6 text-sm text-gray-500">No events loaded.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chat Modal */}
       {showChat && selectedEvent && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
@@ -377,77 +509,77 @@ export default function Home() {
             </div>
             
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-gradient-to-br from-gray-50 to-blue-50/30">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
               {chatMessages.length === 0 && (
-                <div className="text-center py-16">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                    <MessageCircle className="h-10 w-10 text-blue-600" />
+                <div className="text-center py-20">
+                  <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <MessageCircle className="h-8 w-8 text-white" />
                   </div>
-                  <h4 className="text-2xl font-bold text-gray-900 mb-3">Start Your Analysis</h4>
-                  <p className="text-gray-600 max-w-lg mx-auto text-lg leading-relaxed">
-                    Ask me anything about this event. I can help you understand the markets, analyze probabilities, and provide insights.
+                  <h4 className="text-xl font-semibold text-gray-900 mb-3">How can I help you analyze this event?</h4>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    Ask me anything about the markets, probabilities, or trading strategies for this prediction market.
                   </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 max-w-2xl mx-auto">
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
-                      <h5 className="font-semibold text-gray-900 mb-2">Market Analysis</h5>
-                      <p className="text-sm text-gray-600">Get insights on probability trends and market sentiment</p>
-                    </div>
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
-                      <h5 className="font-semibold text-gray-900 mb-2">Risk Assessment</h5>
-                      <p className="text-sm text-gray-600">Understand potential outcomes and risk factors</p>
-                    </div>
-                  </div>
                 </div>
               )}
               
               {chatMessages.map((message, index) => (
                 <div
                   key={index}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex items-start space-x-3 ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
                 >
-                  <div className={`flex items-start space-x-4 max-w-3xl ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                    {/* Avatar */}
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md ${
-                      message.role === 'user' 
-                        ? 'bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600' 
-                        : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
+                  {/* Avatar */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    message.role === 'user' 
+                      ? 'bg-blue-600' 
+                      : 'bg-gray-100'
+                  }`}>
+                    {message.role === 'user' ? (
+                      <span className="text-white text-xs font-semibold">You</span>
+                    ) : (
+                      <MessageCircle className="h-4 w-4 text-gray-600" />
+                    )}
+                  </div>
+                  
+                  {/* Message Content */}
+                  <div className="flex-1 max-w-none">
+                    <div className={`text-sm font-medium mb-1 ${
+                      message.role === 'user' ? 'text-right text-blue-600' : 'text-gray-900'
                     }`}>
-                      {message.role === 'user' ? (
-                        <span className="text-white text-sm font-bold">U</span>
-                      ) : (
-                        <MessageCircle className="h-5 w-5 text-blue-600" />
-                      )}
+                      {message.role === 'user' ? 'You' : 'Assistant'}
                     </div>
-                    
-                    {/* Message Bubble */}
-                    <div
-                      className={`px-6 py-4 rounded-2xl shadow-lg backdrop-blur-sm ${
-                        message.role === 'user'
-                          ? 'bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 text-white'
-                          : 'bg-white/90 text-gray-900 border border-gray-200'
-                      }`}
-                    >
-                      <p className="text-sm leading-relaxed font-medium">{message.content}</p>
+                    <div className={`prose prose-sm max-w-none ${
+                      message.role === 'user' 
+                        ? 'text-right' 
+                        : 'text-left'
+                    }`}>
+                      {message.role === 'assistant' ? (
+                        <div className="text-base leading-relaxed text-gray-900">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-base leading-relaxed text-gray-900 whitespace-pre-wrap">{message.content}</p>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
               
               {chatLoading && (
-                <div className="flex justify-start">
-                  <div className="flex items-start space-x-4 max-w-3xl">
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-white to-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-md">
-                      <MessageCircle className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className="bg-white/90 text-gray-900 px-6 py-4 rounded-2xl shadow-lg border border-gray-200 backdrop-blur-sm">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex space-x-1">
-                          <div className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-bounce"></div>
-                          <div className="w-2.5 h-2.5 bg-indigo-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                          <div className="w-2.5 h-2.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                        </div>
-                        <span className="text-sm text-gray-700 font-medium">Analyzing your question...</span>
+                <div className="flex items-start space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="h-4 w-4 text-gray-600" />
+                  </div>
+                  <div className="flex-1 max-w-none">
+                    <div className="text-sm font-medium mb-1 text-gray-900">Assistant</div>
+                    <div className="flex items-center space-x-2">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                       </div>
+                      <span className="text-base text-gray-600">Thinking...</span>
                     </div>
                   </div>
                 </div>
@@ -455,33 +587,23 @@ export default function Home() {
             </div>
             
             {/* Input Area */}
-            <div className="px-8 py-6 border-t border-gray-100 bg-gradient-to-r from-white to-gray-50">
-              <div className="flex space-x-4">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
-                    placeholder="Ask about this event..."
-                    className="w-full border border-gray-200 rounded-2xl px-6 py-4 pr-14 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white focus:bg-white transition-all duration-200 text-gray-900 placeholder-gray-500 shadow-sm focus:shadow-md"
-                  />
-                  <button
-                    onClick={sendChatMessage}
-                    disabled={!chatInput.trim() || chatLoading}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 text-white p-2.5 rounded-xl hover:from-blue-600 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between">
-                <div className="text-sm text-gray-500">
-                  Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Enter</kbd> to send
-                </div>
-                <div className="text-xs text-gray-400">
-                  Ask about markets, probabilities, or insights
-                </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex space-x-3">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage() } }}
+                  placeholder="Message..."
+                  className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-base"
+                />
+                <button
+                  onClick={sendChatMessage}
+                  disabled={!chatInput.trim() || chatLoading}
+                  className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
