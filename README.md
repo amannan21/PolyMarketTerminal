@@ -1,4 +1,4 @@
-🚀 Polymarket Terminal v2
+# Polymarket Terminal v2
 
 Real-time Polymarket terminal built with FastAPI and Next.js, featuring event search, filtering, chat analysis, and AI trading implementation
 
