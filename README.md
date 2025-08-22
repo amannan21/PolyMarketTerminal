@@ -173,45 +173,14 @@ npm run build
 # Start production server
 npm start
 
-# Deploy to Vercel
-vercel --prod
 ```
-
-## 🔮 Future Enhancements
 
 ### Planned Features
 - **Real-time Updates**: WebSocket integration for live data
 - **Advanced Analytics**: Charts and data visualization
 - **User Accounts**: Personal portfolios and preferences
 - **Notifications**: Price alerts and event updates
-- **Mobile App**: React Native version
 
-### AI Enhancements
-- **OpenAI Integration**: Real AI analysis (currently mock)
-- **Sentiment Analysis**: Market sentiment scoring
-- **Risk Assessment**: Automated risk evaluation
-- **Prediction Models**: ML-based outcome predictions
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Polymarket**: For providing the prediction market platform
-- **FastAPI**: For the excellent Python web framework
-- **Next.js**: For the React framework
-- **Tailwind CSS**: For the utility-first CSS framework
-- **Lucide**: For the beautiful icons
-
----
 
 **🚀 Polymarket Terminal v2** - Your modern command center for prediction markets 
