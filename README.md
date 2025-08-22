@@ -183,4 +183,3 @@ npm start
 
 
 
-**🚀 Polymarket Terminal v2** - Your modern command center for prediction markets 
