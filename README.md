@@ -2,7 +2,7 @@
 
 Modern, real-time Polymarket terminal built with FastAPI and Next.js, featuring event search, filtering, chat analysis, and AI trading implementation
 
-## ✨ Features
+
 
 ### 🔍 Event Discovery
 - **Real-time Search**: Search through all active Polymarket events
